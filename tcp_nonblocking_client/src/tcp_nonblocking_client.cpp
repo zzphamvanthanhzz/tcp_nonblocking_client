@@ -4,63 +4,62 @@
  *
  * Created on October 28, 2015, 10:40 PM
  */
-
-#include <stdio.h> 
-#include <stdlib.h> 
-#include <errno.h> 
-#include <string.h> 
-#include <netdb.h> 
-#include <sys/types.h> 
-#include <netinet/in.h> 
-#include <sys/socket.h> 
 #include <unistd.h>
-
-#define PORT 6060    /* the port client will be connecting to */
-
-#define MAXDATASIZE 100 /* max number of bytes we can get at once */
+#include <iostream>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <stdio.h>
+#define MAXHOSTNAME 256
 using namespace std;
 
-/*
- * 
- */
-int main(int argc, char** argv) {
-	int sockfd, numbytes;
-	char buf[MAXDATASIZE];
-	struct hostent *he;
-	struct sockaddr_in their_addr; /* connector's address information */
+main() {
+	struct sockaddr_in remoteSocketInfo;
+	struct hostent *hPtr;
+	int socketHandle;
+	const char *remoteHost = "127.0.0.1";
+	int portNumber = 8081;
 
-	if (argc != 2) {
-		fprintf(stderr, "usage: client hostname\n");
-		exit(1);
+	bzero(&remoteSocketInfo, sizeof (sockaddr_in)); // Clear structure memory
+
+	// Get system information
+
+	if ((hPtr = gethostbyname(remoteHost)) == NULL) {
+		cerr << "System DNS name resolution not configured properly." << endl;
+		cerr << "Error number: " << ECONNREFUSED << endl;
+		exit(EXIT_FAILURE);
 	}
 
-	if ((he = gethostbyname(argv[1])) == NULL) { /* get the host info */
-		herror("gethostbyname");
-		exit(1);
+	// create socket
+
+	if ((socketHandle = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		close(socketHandle);
+		exit(EXIT_FAILURE);
 	}
 
-	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-		perror("socket");
-		exit(1);
+	// Load system information into socket data structures
+
+	memcpy((char *) &remoteSocketInfo.sin_addr, hPtr->h_addr, hPtr->h_length);
+	remoteSocketInfo.sin_family = AF_INET;
+	remoteSocketInfo.sin_port = htons((u_short) portNumber); // Set port number
+
+	if (connect(socketHandle, (struct sockaddr *) &remoteSocketInfo, sizeof (sockaddr_in)) < 0) {
+		close(socketHandle);
+		exit(EXIT_FAILURE);
 	}
 
-	their_addr.sin_family = AF_INET; /* host byte order */
-	their_addr.sin_port = htons(PORT); /* short, network byte order */
-	their_addr.sin_addr = *((struct in_addr *) he->h_addr);
-	bzero(&(their_addr.sin_zero), 8); /* zero the rest of the struct */
-
-	if (connect(sockfd, (struct sockaddr *) &their_addr, sizeof (struct sockaddr)) == -1) {
-		perror("connect");
-		exit(1);
-	}
-	/* sleep(5); */
-//	while (1) {
-		if (send(sockfd, "Hello, World!\n", 14, 0) == -1)
-			printf("Error send %s\n", strerror(errno));
-		printf("In loop \n");
-//	}
-	close(sockfd);
-
-	return 0;
+	int rc = 0; // Actual number of bytes read by function read()
+	char buf[512];
+	char rev_buf[512];
+	strcpy(buf, "Message to send");
+	send(socketHandle, buf, strlen(buf) + 1, 0);
+	rc = recv(socketHandle, rev_buf, strlen(buf) + 1, 0);
+	
+	printf("Receive data: %s\tSize of data: %d\n", rev_buf, rc);
 }
+
 
